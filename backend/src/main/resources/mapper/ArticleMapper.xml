@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bloghub.mapper.ArticleMapper">
+
+    <!-- 基础结果映射 -->
+    <resultMap id="BaseResultMap" type="com.bloghub.entity.Article">
+        <id column="id" property="id"/>
+        <result column="slug" property="slug"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="description" property="description"/>
+        <result column="cover_image" property="coverImage"/>
+        <result column="author_id" property="authorId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="status" property="status"/>
+        <result column="is_pinned" property="isPinned"/>
+        <result column="views" property="views"/>
+        <result column="likes" property="likes"/>
+        <result column="scheduled_at" property="scheduledAt"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="author_name" property="authorName"/>
+        <result column="author_avatar" property="authorAvatar"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="tags" property="tags"/>
+    </resultMap>
+
+    <!-- 分页查询已发布文章 -->
+    <select id="selectPublishedPage" resultMap="BaseResultMap">
+        SELECT a.*, u.nickname AS author_name, u.avatar AS author_avatar,
+               c.name AS category_name,
+               (SELECT GROUP_CONCAT(t.name SEPARATOR ',') FROM article_tag at2 JOIN tag t ON at2.tag_id = t.id WHERE at2.article_id = a.id) AS tags
+        FROM article a
+        LEFT JOIN user u ON a.author_id = u.id
+        LEFT JOIN category c ON a.category_id = c.id
+        WHERE a.status = 'PUBLISHED'
+          AND a.deleted = 0
+        <if test="categoryId != null">
+            AND a.category_id = #{categoryId}
+        </if>
+        <if test="tagId != null">
+            AND a.id IN (SELECT article_id FROM article_tag WHERE tag_id = #{tagId})
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (a.title LIKE CONCAT('%', #{keyword}, '%')
+                 OR a.description LIKE CONCAT('%', #{keyword}, '%')
+                 OR a.content LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <choose>
+            <when test="sort == 'likes'">
+                ORDER BY a.likes DESC, a.created_at DESC
+            </when>
+            <when test="sort == 'views'">
+                ORDER BY a.views DESC, a.created_at DESC
+            </when>
+            <when test="sort == 'date'">
+                ORDER BY a.created_at DESC
+            </when>
+            <otherwise>
+                ORDER BY a.is_pinned DESC, a.created_at DESC
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 查询文章详情 -->
+    <select id="selectDetailById" resultMap="BaseResultMap">
+        SELECT a.*, u.nickname AS author_name, u.avatar AS author_avatar,
+               c.name AS category_name,
+               (SELECT GROUP_CONCAT(t.name SEPARATOR ',') FROM article_tag at2 JOIN tag t ON at2.tag_id = t.id WHERE at2.article_id = a.id) AS tags
+        FROM article a
+        LEFT JOIN user u ON a.author_id = u.id
+        LEFT JOIN category c ON a.category_id = c.id
+        WHERE a.id = #{id} AND a.deleted = 0
+    </select>
+
+    <!-- 按 slug 查询详情 -->
+    <select id="selectDetailBySlug" resultMap="BaseResultMap">
+        SELECT a.*, u.nickname AS author_name, u.avatar AS author_avatar,
+               c.name AS category_name,
+               (SELECT GROUP_CONCAT(t.name SEPARATOR ',') FROM article_tag at2 JOIN tag t ON at2.tag_id = t.id WHERE at2.article_id = a.id) AS tags
+        FROM article a
+        LEFT JOIN user u ON a.author_id = u.id
+        LEFT JOIN category c ON a.category_id = c.id
+        WHERE a.slug = #{slug} AND a.deleted = 0
+    </select>
+
+    <!-- 插入文章-标签关联 -->
+    <insert id="insertArticleTag">
+        INSERT IGNORE INTO article_tag (article_id, tag_id, created_at)
+        VALUES (#{articleId}, #{tagId}, NOW())
+    </insert>
+
+    <!-- 删除文章-标签关联 -->
+    <delete id="deleteArticleTags">
+        DELETE FROM article_tag WHERE article_id = #{articleId}
+    </delete>
+
+    <!-- 增加浏览量 -->
+    <update id="incrementViews">
+        UPDATE article SET views = views + 1 WHERE id = #{id}
+    </update>
+
+    <!-- 更新点赞数 -->
+    <update id="updateLikes">
+        UPDATE article SET likes = #{likes} WHERE id = #{id}
+    </update>
+
+</mapper>
